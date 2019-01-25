@@ -2,7 +2,7 @@
 
 require 'optparse'
 require 'open-uri'
-require 'net/http'
+require 'httpclient'
 require 'uri'
 require 'json'
 
@@ -15,7 +15,14 @@ TAGS = %w(
 params = ARGV.getopts('u:p:t:')
 
 def login(user, pass)
-	endpoint = 'https://secure.nicovideo.jp/secure/login?site=niconico'
+	endpoint = URI.parse('https://secure.nicovideo.jp/secure/login?site=niconico')
+	client = HTTPClient.new
+	response = client.post(endpoint, query: {mail: user, password: pass})
+	if HTTP::Status.successful?(response.code)
+		return client
+	else
+		return nil
+	end
 end
 
 def list_movies(tag)
@@ -34,8 +41,13 @@ def list_movies(tag)
 	end
 end
 
-def list_comments(movie)
+def list_comments(client, content_id)
 	# https://qiita.com/tor4kichi/items/74939b49954d3e72d789
+
+	movie_url = 'https://www.nicovideo.jp/watch/' + content_id
 end
 
-p list_movies(TAGS[0])
+list_movies(TAGS[0])['data'].each do |data|
+	puts data['title']
+	puts data['contentId']
+end
