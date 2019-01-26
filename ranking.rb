@@ -13,8 +13,6 @@ TAGS = %w(
 	超振り付け選手権2019_コラボ部門
 )
 
-params = ARGV.getopts('u:p:t:')
-
 def login(user, pass)
 	endpoint = URI.parse('https://secure.nicovideo.jp/secure/login?site=niconico')
 	client = HTTPClient.new
@@ -48,17 +46,60 @@ def _create_request_ping(content)
 	}
 end
 
-def _create_comment_request(threads)
-	request = []
-	request << _create_request_ping(client, 'rs:0')
-	request << _create__request_ping(client, 'ps:0')
-	# thread
-	request << _create__request_ping(client, 'pf:0')
-	request << _create__request_ping(client, 'ps:1')
-	# thread_leaves
-	request << _create__request_ping(client, 'pf:1')
-	request << _create__request_ping(client, 'rf:0')
+def _create_request_component(request, component, count)
+	request << _create_request_ping('ps:' + count.to_s)
+	request << component
+	request << _create_request_ping('pf:' + count.to_s)
 end
+
+def _create_comment_request(threads, userkey, user_id, duration)
+	count = 0
+	request = []
+	request << _create_request_ping('rs:0')
+
+	threads.each do |thread|
+		# thread
+		if thread['isActive']
+			component = {
+				"thread" => {
+					"thread" => thread["id"].to_s,
+					"fork" => thread["fork"],
+					"version" => "20090994",
+					"language" => 0,
+					"user_id" => user_id.to_s,
+					"with_global" => 1,
+					"scores" => 1,
+					"nicoru" => 0,
+					"userkey" => userkey,
+				}
+			}
+			_create_request_component(request, component, count)
+			count += 1
+		end
+
+		# thread_leaves
+		if thread['isLeafRequired']
+			component = {
+				"thread_leaves" => {
+					"thread" => thread["id"].to_s,
+					"language" => 0,
+					"user_id" => user_id.to_s,
+					"content" => "0-%d:100,1000" % (duration / 60 + ((duration % 60 > 0) ? 1 : 0)),
+					"scores" => 1,
+					"nicoru" => 0,
+					"userkey" => userkey,
+				}
+			}
+			_create_request_component(request, component, count)
+			count += 1
+		end
+	end
+
+	request << _create_request_ping('rf:0')
+	return request
+end
+
+require 'pp'
 
 def list_comments(client, content_id)
 	# https://qiita.com/tor4kichi/items/74939b49954d3e72d789
@@ -73,13 +114,23 @@ def list_comments(client, content_id)
 		return []
 	end
 
-	threads = json['commentComposite']['threads'].select {|thread| thread['isActive']}
+	threads = json['commentComposite']['threads']
+	userkey = json["context"]["userkey"]
+	user_id = json["viewer"]["id"]
+	duration = json["video"]["duration"]
+	request = _create_comment_request(threads, userkey, user_id, duration)
 
 	endpoint = 'http://nmsg.nicovideo.jp/api.json/'
-	client.post(endpoint, JSON.unparse(request))
+	response = client.post(endpoint, body: JSON.unparse(request))
+	print(response.body)
+
+	json = JSON.parse(CGI.unescape_html(response.body))
+	pp json
 end
 
 if $0 == __FILE__
+	params = ARGV.getopts('u:p:t:')
+
 	list_movies(TAGS[0])['data'].each do |data|
 		puts data['title']
 		puts data['contentId']
