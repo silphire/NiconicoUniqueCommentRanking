@@ -58,13 +58,12 @@ def _create_comment_request(threads, userkey, user_id, duration)
 	request << _create_request_ping('rs:0')
 
 	threads.each do |thread|
-		# thread
 		if thread['isActive']
 			component = {
 				"thread" => {
 					"thread" => thread["id"].to_s,
-					"fork" => thread["fork"],
 					"version" => "20090994",
+					"fork" => thread["fork"],
 					"language" => 0,
 					"user_id" => user_id.to_s,
 					"with_global" => 1,
@@ -77,7 +76,6 @@ def _create_comment_request(threads, userkey, user_id, duration)
 			count += 1
 		end
 
-		# thread_leaves
 		if thread['isLeafRequired']
 			component = {
 				"thread_leaves" => {
@@ -121,8 +119,12 @@ def list_comments(client, content_id)
 	request = _create_comment_request(threads, userkey, user_id, duration)
 
 	endpoint = 'http://nmsg.nicovideo.jp/api.json/'
-	response = client.post(endpoint, body: JSON.unparse(request))
-	print(response.body)
+	response = client.post(endpoint, body: JSON.unparse(request), header: {
+		'Content-Type' => 'text/plain;charset=UTF-8',
+		'Referer' => movie_url,
+		'Origin' => 'https://www.nicovideo.jp',
+		'Accept' => '*/*',
+	})
 
 	json = JSON.parse(CGI.unescape_html(response.body))
 	pp json
