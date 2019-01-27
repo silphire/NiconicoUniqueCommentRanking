@@ -127,7 +127,24 @@ def list_comments(client, content_id)
 	})
 
 	json = JSON.parse(CGI.unescape_html(response.body))
-	pp json
+	chats = json.select{|component| component.include?('chat')}
+	return chats
+end
+
+def count_comments(chats, content_id)
+	comments = 0
+	deleted = 0
+	user_hash = Hash.new(0)
+	chats.each do |chat|
+		chat = chat['chat']
+		if chat.include?('user_id')
+			user_hash[chat['user_id']] += 1
+		end
+		comments += 1
+		deleted += 1 if chat.include?('deleted') && chat['deleted'] >=1
+	end
+	users = user_hash.size
+	return [comments, users, deleted]
 end
 
 if $0 == __FILE__
