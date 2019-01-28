@@ -7,7 +7,6 @@ require 'uri'
 require 'json'
 require 'cgi'
 
-API_ENDPOINT = 'http://nmsg.nicovideo.jp/api.json/'
 TAGS = %w(
 	超振り付け選手権2019_ソロ部門
 	超振り付け選手権2019_コラボ部門
@@ -147,11 +146,44 @@ def count_comments(chats, content_id)
 	return [comments, users, deleted]
 end
 
-if $0 == __FILE__
-	params = ARGV.getopts('u:p:t:')
+def show_ranking(client)
+	TAGS.each do |tag|
+		stats = []
 
-	list_movies(TAGS[0])['data'].each do |data|
-		puts data['title']
-		puts data['contentId']
+		movies = list_movies(tag)['data']
+		movies.each do |movie|
+			content_id = movie['contentId']
+
+			retry_count = 0
+			loop do 
+				comments = list_comments(client, content_id)
+				count = count_comments(comments, content_id)
+				if count[0] > 0
+					stats << [count[1], content_id, movie['title']]
+					break
+				end
+
+				retry_count += 1
+				puts "#{content_id} retrying (#{retry_count}/10)..."
+				if retry_count == 10
+					raise 'retry limit exceeded'
+				end
+				sleep(5)
+			end
+		end
+
+		stats.sort!{|a, b| -(a[0] <=> b[0])}
+
+		puts('# ' + tag)
+		puts()
+		stats.each_with_index do |n, stat|
+			puts "#{n}: (#{stat[0]} users) [#{stats[2]}](https://www.nicovideo.jp/watch/#{stat[1]})"
+		end
+		puts()
 	end
+end
+
+if $0 == __FILE__
+	client = login(ARGV[0], ARGV[1])
+	show_ranking(client)
 end
